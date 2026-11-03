@@ -1,0 +1,34 @@
+{
+  "name": "@local/work-wage",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Tickwage：按秒展示上班已赚金额。",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "wage.js",
+    "icon.svg",
+    "cordis.patch.yml",
+    "locale/*.json"
+  ],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": ["@deepseek-ai/dsh-client-ui-conversation"]
+    },
+    "locale": {
+      "title": "meta.title",
+      "description": "meta.description"
+    }
+  }
+}
