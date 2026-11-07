@@ -81,7 +81,8 @@ window.__ModuleLoader__.load({
       if (settings.restMode === 'alternate') {
         const small = settings.anchorWeek !== 'big'
         const smallWeek = (weeksFromToday(today, year, month, day) + (small ? 0 : 1)) % 2 === 0
-        return smallWeek ? weekday >= 6 : weekday === 7
+        // 小周是单休周：周六照常上班，只有周日休息；大周才是双休。
+        return smallWeek ? weekday === 7 : weekday >= 6
       }
       return weekday >= 6
     }
