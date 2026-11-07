@@ -255,12 +255,17 @@ window.__ModuleLoader__.load({
       return next
     }
 
+    const VIEWPORT_EDGE = 18
+
     const h = React.createElement
     const css = `
       .ww, .ww * { box-sizing: border-box; }
-      .ww { position: fixed; z-index: 40; right: 18px; bottom: 18px; width: 280px; pointer-events: auto; color: var(--dsw-alias-fg, inherit); font: 13px/1.45 inherit; }
-      .ww-shell { overflow: hidden; border: 1px solid color-mix(in srgb, var(--dsw-alias-fg, CanvasText) 10%, transparent); border-radius: 18px; background: var(--dsw-alias-bg-elevated, Canvas); box-shadow: 0 16px 40px color-mix(in srgb, var(--dsw-alias-fg, CanvasText) 16%, transparent); }
-      .ww-bar { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 8px 8px 14px; cursor: grab; user-select: none; }
+      .ww { position: fixed; z-index: 40; right: 18px; bottom: 18px; width: 280px; overflow: visible; pointer-events: auto; color: var(--dsw-alias-fg, inherit); font: 13px/1.45 inherit; }
+      .ww-bar, .ww-pop { border: 1px solid color-mix(in srgb, var(--dsw-alias-fg, CanvasText) 10%, transparent); background: var(--dsw-alias-bg-elevated, Canvas); box-shadow: 0 16px 40px color-mix(in srgb, var(--dsw-alias-fg, CanvasText) 16%, transparent); }
+      .ww-bar { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 8px 8px 14px; border-radius: 18px; cursor: grab; user-select: none; }
+      .ww-pop { position: absolute; left: 0; width: 100%; overflow: auto; border-radius: 18px; }
+      .ww.up .ww-pop { bottom: calc(100% + 8px); }
+      .ww.down .ww-pop { top: calc(100% + 8px); }
       .ww-bar:active { cursor: grabbing; }
       .ww-bar b { font-size: 15px; font-weight: 680; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
       .ww-bar span { color: var(--dsw-alias-fg-muted, currentColor); }
@@ -268,7 +273,7 @@ window.__ModuleLoader__.load({
       .ww-nav, .ww-quiet, .ww-save { height: 28px; padding: 0 10px; border: 0; border-radius: 999px; font: inherit; cursor: pointer; }
       .ww-nav, .ww-save { background: var(--dsw-alias-accent, #3b6cff); color: var(--dsw-alias-accent-fg, #fff); }
       .ww-quiet { background: transparent; color: var(--dsw-alias-fg-muted, currentColor); }
-      .ww-body { padding: 2px 16px 16px; }
+      .ww-body { padding: 2px 16px 16px; max-height: calc(100vh - 80px); overflow: auto; }
       .ww-kicker { margin: 0; color: var(--dsw-alias-fg-muted, currentColor); font-size: 12px; }
       .ww-money { margin: 2px 0 0; font-size: 36px; font-weight: 680; line-height: 1.05; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
       .ww-count { margin: 4px 0 14px; color: var(--dsw-alias-fg-muted, currentColor); font-variant-numeric: tabular-nums; }
@@ -326,7 +331,16 @@ window.__ModuleLoader__.load({
       const [pos, setPos] = React.useState(null)
       const [draft, setDraft] = React.useState(saved)
       const [error, setError] = React.useState('')
+      const [viewportHeight, setViewportHeight] = React.useState(() => window.innerHeight)
+      const [barHeight, setBarHeight] = React.useState(44)
+      const [upward, setUpward] = React.useState(true)
+      const [room, setRoom] = React.useState(0)
       React.useEffect(() => setDraft(saved), [saved])
+      React.useEffect(() => {
+        const onResize = () => setViewportHeight(window.innerHeight)
+        window.addEventListener('resize', onResize)
+        return () => window.removeEventListener('resize', onResize)
+      }, [])
       const view = quote(now, saved)
       const patch = (key, value) => setDraft((current) => ({ ...current, [key]: value }))
       function commit() {
@@ -338,29 +352,48 @@ window.__ModuleLoader__.load({
       }
       function onPointerDown(event) {
         if (event.button !== 0) return
-        const rect = rootRef.current.getBoundingClientRect()
-        dragRef.current = { id: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top, moved: false, x: rect.left, y: rect.top }
+        // 记录把手而不是整张卡片，向上展开时拖动才不会把面板顶当成锚点。
+        const rect = event.currentTarget.getBoundingClientRect()
+        dragRef.current = { id: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top }
         event.currentTarget.setPointerCapture(event.pointerId)
       }
       function onPointerMove(event) {
         const drag = dragRef.current
         if (!drag || drag.id !== event.pointerId) return
-        const x = event.clientX - drag.dx
-        const y = event.clientY - drag.dy
-        if (Math.abs(x - drag.x) + Math.abs(y - drag.y) > 4) drag.moved = true
-        setPos({ x, y })
+        setPos({ x: event.clientX - drag.dx, y: event.clientY - drag.dy })
       }
       function onPointerUp(event) {
         if (dragRef.current?.id === event.pointerId) dragRef.current = null
       }
       const open = page !== 'closed'
-      return h('div', { ref: rootRef, className: 'ww', style: pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : undefined },
-        h('style', null, css),
-        h('div', { className: 'ww-shell' },
-          h('div', { className: 'ww-bar', title: '拖动可换位置', onPointerDown, onPointerMove, onPointerUp },
-            h('span', null, view.status), h('b', null, formatMoney(view.today)), h('span', { className: 'ww-grow' }),
-            h('button', { type: 'button', className: 'ww-nav', onPointerDown: (event) => event.stopPropagation(), onClick: () => setPage(open ? 'closed' : 'show') }, open ? '收起' : '展开')),
-          open && page === 'show' ? h('div', { className: 'ww-body' },
+      React.useLayoutEffect(() => {
+        const root = rootRef.current
+        const bar = root?.querySelector('.ww-bar')
+        if (!bar) return
+        const rect = bar.getBoundingClientRect()
+        setBarHeight((prev) => (prev === rect.height ? prev : rect.height))
+        // 父级浮层和把手都用 getBoundingClientRect，坐标系一致，不受缩放和窗口边框影响。
+        const host = root.parentElement?.getBoundingClientRect()
+        if (!host) return
+        const above = rect.top - host.top
+        const below = host.bottom - rect.bottom
+        // 哪边更空就往哪边开，等量时向上
+        const next = above >= below
+        setUpward((prev) => (prev === next ? prev : next))
+        const space = Math.max(120, (next ? above : below) - 16)
+        setRoom((prev) => (prev === space ? prev : space))
+      }, [pos, open, viewportHeight])
+      // 外框始终按把手顶边定位，拖动前后同一套坐标。面板相对把手，不再用窗口底边反算。
+      const barTop = pos ? pos.y : viewportHeight - VIEWPORT_EDGE - barHeight
+      const placed = {
+        left: pos ? pos.x : 'auto',
+        right: pos ? 'auto' : VIEWPORT_EDGE,
+        top: barTop,
+        bottom: 'auto',
+      }
+      const bodyStyle = { maxHeight: room || undefined }
+      const panel = !open ? null
+        : page === 'show' ? h('div', { className: 'ww-body', style: bodyStyle },
             h('p', { className: 'ww-kicker' }, '今日已赚'),
             h('p', { className: 'ww-money' }, formatMoney(view.today)),
             h('p', { className: 'ww-count' }, view.countdownLabel, ' ', h('b', null, view.countdown), view.weekLabel ? ` · ${view.weekLabel}` : ''),
@@ -369,8 +402,8 @@ window.__ModuleLoader__.load({
               h('div', null, h('span', null, '本月累计'), h('b', null, formatMoney(view.month)))),
             h('div', { className: 'ww-foot' },
               h('span', { className: 'ww-kicker' }, `${view.workdays} 个工作日`),
-              h('button', { type: 'button', className: 'ww-quiet', onClick: () => setPage('settings') }, '设置'))) : null,
-          open && page === 'settings' ? h('div', { className: 'ww-body' },
+              h('button', { type: 'button', className: 'ww-quiet', onClick: () => setPage('settings') }, '设置')))
+        : h('div', { className: 'ww-body', style: bodyStyle },
             h('div', { className: 'ww-section' }, '时间'),
             h('div', { className: 'ww-grid' },
               h(Field, { label: '上班', type: 'time', value: draft.start, onChange: (value) => patch('start', value) }),
@@ -386,7 +419,13 @@ window.__ModuleLoader__.load({
             error ? h('p', { className: 'ww-error' }, error) : null,
             h('div', { className: 'ww-foot' },
               h('button', { type: 'button', className: 'ww-quiet', onClick: () => { setDraft(saved); setError(''); setPage('show') } }, '返回'),
-              h('button', { type: 'button', className: 'ww-save', onClick: commit }, '保存'))) : null))
+              h('button', { type: 'button', className: 'ww-save', onClick: commit }, '保存')))
+      return h('div', { ref: rootRef, className: upward ? 'ww up' : 'ww down', style: placed },
+        h('style', null, css),
+        h('div', { className: 'ww-bar', title: '拖动可换位置', onPointerDown, onPointerMove, onPointerUp },
+          h('span', null, view.status), h('b', null, formatMoney(view.today)), h('span', { className: 'ww-grow' }),
+          h('button', { type: 'button', className: 'ww-nav', onPointerDown: (event) => event.stopPropagation(), onClick: () => setPage(open ? 'closed' : 'show') }, open ? '收起' : '展开')),
+        open && h('div', { className: 'ww-pop' }, panel))
     }
     return { inject: ['slots'], apply(ctx) { ctx.slots.inject('shell.overlay', () => ctx.slots.register({ name: 'shell.overlay', id: 'work-wage', order: 30, label: '上班计费' }, Widget)) } }
 
